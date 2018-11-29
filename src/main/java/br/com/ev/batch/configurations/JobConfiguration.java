@@ -57,11 +57,11 @@ public class JobConfiguration {
 	}
 	
 	@Bean
-	public Job transitionJobSimpleFail() {
-		return jobBuilderFactory.get("transitionJobSimpleFail")
+	public Job transitionJobSimpleStop() {
+		return jobBuilderFactory.get("transitionJobSimpleStop")
 				.start(step1())
 				.on("COMPLETED").to(step2())
-				.from(step2()).on("COMPLETED").fail()
+				.from(step2()).on("COMPLETED").stopAndRestart(step3())
 				.from(step3()).end()
 				.build();	
 	}
