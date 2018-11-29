@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import ch.qos.logback.classic.gaffer.ConfigurationContributor;
+
 @Configuration
 //Ativar processamento em lote - Faz a alça de inicialização de toda a infraestrutura que o spring batch precisa executar, e fornece alguns construtores necessários
 @EnableBatchProcessing 
@@ -30,16 +32,36 @@ public class JobConfiguration {
 				.tasklet(new Tasklet() {
 					@Override
 					public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
-						System.out.println("Hello World!");
+						System.out.println(">> This is step 1");
 						return RepeatStatus.FINISHED;
 					}
 				}).build();
 	}
 	
 	@Bean
-	public Job helloWorldJob() {
-		return jobBuilderFactory.get("helloWorldJob")
+	public Step step2() {
+		return stepBuilderFactory.get("step2")
+				.tasklet((contribution, chunkContext) -> {
+					System.out.println(">> This is step 2");
+					return RepeatStatus.FINISHED;
+				}).build();
+	}
+	
+	@Bean
+	public Step step3() {
+		return stepBuilderFactory.get("step3")
+				.tasklet((contribution, chunkContext) -> {
+					System.out.println(">> This is step 3");
+					return RepeatStatus.FINISHED;
+				}).build();
+	}
+	
+	@Bean
+	public Job transitionJobNext() {
+		return jobBuilderFactory.get("transitionJobNext")
 				.start(step1())
+				.next(step2())
+				.next(step3())
 				.build();	
 	}
 
