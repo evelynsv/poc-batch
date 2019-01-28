@@ -1,18 +1,18 @@
 package br.com.ev.batch.configurations;
 
 import org.springframework.batch.core.Job;
-import org.springframework.batch.core.StepContribution;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.Step;
+import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.core.job.builder.FlowBuilder;
-import org.springframework.batch.core.job.flow.Flow;
-import org.springframework.batch.core.scope.context.ChunkContext;
-import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.core.job.flow.FlowExecutionStatus;
+import org.springframework.batch.core.job.flow.JobExecutionDecider;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.task.SimpleAsyncTaskExecutor;
 
 /**
  * 
@@ -20,7 +20,8 @@ import org.springframework.core.task.SimpleAsyncTaskExecutor;
  *
  */
 @Configuration
-public class BatchConfiguration {
+@EnableBatchProcessing
+public class BatchConfiguration{
 	
 	@Autowired
 	private JobBuilderFactory jobBuilderFactory;
@@ -28,44 +29,64 @@ public class BatchConfiguration {
 	@Autowired
 	private StepBuilderFactory stepBuilderFactory;
 	
+	
 	@Bean
-	public Tasklet tasklet() {
-		return new CountingTasklet();
+	public Step startStep() {
+		return stepBuilderFactory.get("startStep")
+				.tasklet((contribution, chunckContext) -> {
+					System.out.println("This is the start tasklet");
+					return RepeatStatus.FINISHED;
+				}).build();
 	}
 	
 	@Bean
-	public Flow flow1() {
-		return new FlowBuilder<Flow>("flow1")
-				.start(stepBuilderFactory.get("step1")
-						.tasklet(tasklet()).build())
-				.build();
+	public Step evenStep() {
+		return stepBuilderFactory.get("evenStep")
+				.tasklet((contribution, chunckContext) -> {
+					System.out.println("This is the even tasklet");
+					return RepeatStatus.FINISHED;
+				}).build();
 	}
 	
 	@Bean
-	public Flow flow2() {
-		return new FlowBuilder<Flow>("flow2")
-				.start(stepBuilderFactory.get("step2")
-						.tasklet(tasklet()).build())
-				.next(stepBuilderFactory.get("step3")
-						.tasklet(tasklet()).build())
-				.build();
+	public Step oddStep() {
+		return stepBuilderFactory.get("oddStep")
+				.tasklet((contribution, chunckContext) -> {
+					System.out.println("This is the odd tasklet");
+					return RepeatStatus.FINISHED;
+				}).build();
+	}
+	
+	@Bean
+	public JobExecutionDecider decider() {
+		return new OddDecider();
 	}
 	
 	@Bean
 	public Job job() {
 		return jobBuilderFactory.get("job")
-				.start(flow1())
-				.split(new SimpleAsyncTaskExecutor()).add(flow2())
+				.start(startStep())
+				.next(decider())
+				.from(decider()).on("ODD").to(oddStep())
+				.from(decider()).on("EVEN").to(evenStep())
+				.from(decider()).on("*").to(decider())
+				.from(decider()).on("ODD").to(oddStep())
+				.from(decider()).on("EVEN").to(evenStep())
 				.end()
 				.build();
 	}
 	
-	private static class CountingTasklet implements Tasklet {
+	private static class OddDecider implements JobExecutionDecider {
+		
+		private int count = 0;
 		
 		@Override
-		public RepeatStatus execute(StepContribution stepContribution, ChunkContext chunkContext) {
-			System.out.println(String.format("%s has been executed on thread %s", chunkContext.getStepContext().getStepName(), Thread.currentThread().getName()));
-			return RepeatStatus.FINISHED;
+		public FlowExecutionStatus decide(JobExecution jobExecution, StepExecution stepExecution) {
+			if(count % 2 == 0) {
+				return new FlowExecutionStatus("EVEN");
+			}else {
+				return new FlowExecutionStatus("ODD");
+			}
 		}
 	}
 
